@@ -2,10 +2,6 @@
 
 This repo contains the scripts used to compare Google's VeLO (Versatile Learned Optimizer) against classic optimizers used in deep learning like Adam, SGDM, and more, on image classification task across four datasets: MNIST, Kuzushiji-MNIST (KMNIST), FashionMNIST. For CIFAR10 find here.
 
-## Hyperparameters Tuning: Is VeLO inherently better, or just better than poorly tuned baselines?
-
-The code for hyperparamters tuning of baseline optimizers to see if they surpass the performance of VeLO is in /hparams_search.
-
 ## How to run locally?
 
 Make sure to have virtual environment. If not, in terminal do ```pip3 install virtualenv```. Then,
@@ -51,3 +47,41 @@ python benchmarks/agg_infer.py
   --opt velo
 ```
 
+# Hyperparameters Tuning: Is VeLO inherently better, or just better than poorly tuned baselines?
+
+Goal: test whether tuned baselines can surpass VeLO. Scripts to run are in /hparams_search.
+
+Example: tune Adam on MNIST with ResNet1 for 20 trials
+```
+python hparams_search\optuna_search.py \
+  --model resnet1 \
+  --dataset mnist \
+  --batch_size 32 \
+  --alt_opt adam \
+  --epochs 5 \
+  --n_trials 20
+```
+
+# Repo structure
+FLAX-VeLO/
+├─ benchmarks/
+│  ├─ benchmark.py
+│  ├─ plot.py
+│  ├─ inference.py
+│  └─ agg_infer.py
+├─ hparams_search/
+│  ├─ tune.py                # your Optuna script (example shown in README)
+│  ├─ checkpoints/
+│  └─ study/
+├─ config/
+│  ├─ hparams.py             # suggest_hparams(trial)
+│  └─ optimizer.py           # build_optimizer(...)
+├─ trainer/
+│  └─ __init__.py            # trainer()
+├─ utils/
+│  └─ ...                    # split_train_val, save_checkpoint, etc.
+├─ results/
+│  ├─ metrics/
+│  ├─ checkpoints/
+│  └─ plots/
+└─ requirements.txt
