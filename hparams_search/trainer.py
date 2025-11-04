@@ -1,6 +1,8 @@
 import sys
 sys.path.append('../')
 
+from jeffnet.linen import create_model #effnet
+
 import functools
 from typing import NamedTuple, Any
 import time
@@ -82,75 +84,98 @@ def lopt_update(self,
   return base.OptStep(params=params, state=new_state)
 
 ########################################## main training ############################################
-def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
-          rng=None, use_lopt=True, init_params=None, init_batch_stats=None,
-          swa_start_epoch=30, swa_freq=3,
-          alternate_opt='adam', nb_epochs=10, train_batch_size=32, test_batch_size=32,
+def trainer(train_ds, test_ds, ds_info, model, opt_name: str, hparams: dict, optimizer_fn,
+          rng=None, init_params=None, init_batch_stats=None, 
+          nb_epochs=10, train_batch_size=32, test_batch_size=32,
           run_name="default"):
+          
+    print(f"######################## TRAINING WITH {opt_name} ########################")
 
     input_shape = (1,) + ds_info.features["image"].shape
     num_classes = ds_info.features["label"].num_classes
     # convert model and optimizer name
     model = model.lower()
-    alternate_opt = alternate_opt.lower()
+    opt_name = opt_name.lower()
 
-    net = {
-        'resnet1': ResNet1,
-        'resnet18': ResNet18,
-        'resnet34': ResNet34,
-        'resnet50': ResNet50,
-        'resnet101': ResNet101,
-        'resnet152': ResNet152
-    }.get(model, None)
+    #net = {
+    #    'resnet1': ResNet1,
+    #    'resnet18': ResNet18,
+    #    'resnet34': ResNet34,
+    #    'resnet50': ResNet50,
+    #    'resnet101': ResNet101,
+    #    'resnet152': ResNet152
+    #}.get(model, None)
 
-    if net is None:
-        raise ValueError("Unknown model!")
-    net = net(num_classes=num_classes)
+    #if net is None:
+    #    raise ValueError("Unknown model!")
+    #net = net(num_classes=num_classes)
+    
+    if model == "efficientnet_b0":
+        net, init_variables = create_model(
+            variant="tf_efficientnet_b0",
+            pretrained=False,
+            input_shape=(3, 128, 128),  # CIFAR100 shape RGB reverse
+            num_classes=num_classes,
+            dtype=jnp.float16
+        )
+        init_params = init_variables["params"]
+        init_batch_stats = init_variables.get("batch_stats", {})
+    else:
+        net = {
+            'resnet1': ResNet1,
+            'resnet18': ResNet18,
+            'resnet34': ResNet34,
+            'resnet50': ResNet50,
+            'resnet101': ResNet101,
+            'resnet152': ResNet152
+        }.get(model, None)
+
+        if net is None:
+            raise ValueError("Unknown model!")
+        net = net(num_classes=num_classes)
 
     def predict(params, inputs, aux, train=False):
-        x = inputs.astype(jnp.float32) / 255.
         all_params = {"params": params, "batch_stats": aux}
-        return net.apply(all_params, x, train=train, mutable=["batch_stats"] if train else False)
+        if model in ["efficientnet_b0", "mobilenetv3", "efficientnet_lite4"]:
+            return net.apply(all_params, inputs, training=train, mutable=["batch_stats"] if train else False)
+        else:
+            return net.apply(all_params, inputs, train=train, mutable=["batch_stats"] if train else False)
 
     @jax.jit
-    def compute_softmax_loss(params, l2reg, logits, labels):
+    def compute_softmax_loss(params, logits, labels):
         """Loss for soft labels (CutMix / MixUp compatible)."""
         loss_val = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=labels))
-        sqnorm = tree_util.tree_l2_norm(params, squared=True)
-        return loss_val + 0.5 * l2reg * sqnorm
+        return loss_val
         
     @jax.jit
-    def accuracy_and_loss(params, l2reg, data, aux):
+    def accuracy_and_loss(params, data, aux):
         inputs, labels = data
         logits = predict(params, inputs, aux, train=False)
         pred_class = jnp.argmax(logits, axis=-1)
         true_class = jnp.argmax(labels, axis=-1)  # Convert soft labels back to class
         acc = jnp.mean(pred_class == true_class)
-        loss_val = compute_softmax_loss(params, l2reg, logits, labels)
+        loss_val = compute_softmax_loss(params, logits, labels)
         return acc, loss_val
 
-    def loss_fun(params, l2reg, data, aux):
+    def loss_fun(params, data, aux):
         inputs, labels = data
         logits, net_state = predict(params, inputs, aux, train=True)
-        loss_val = compute_softmax_loss(params, l2reg, logits, labels)
+        loss_val = compute_softmax_loss(params, logits, labels)
         return loss_val, net_state["batch_stats"]
         
-    @jax.jit
-    def update_ema(params, ema_state):
-        return ema.update(params, ema_state)
+    #@jax.jit
+    #def update_ema(params, ema_state):
+    #    return ema.update(params, ema_state)
     
     iter_per_epoch_train = ds_info.splits["train"].num_examples // train_batch_size
     iter_per_epoch_test = ds_info.splits["test"].num_examples // test_batch_size
     NUM_STEPS = nb_epochs * iter_per_epoch_train
     
     # DEFINE HPARAMS
-    L2REG = hparams['l2reg']
-    #LR = hparams['lr']
-    #MOMENTUM = hparams['momentum']
-    MOMENTUM=0.9
-    EMA_DECAY = hparams['ema_decay']
+    #L2REG = hparams['l2reg']
+    #EMA_DECAY = hparams['ema_decay']
 
-    opt = optimizer_fn(hparams=hparams, num_steps=NUM_STEPS, use_lopt=use_lopt, alternate_opt=alternate_opt, momentum=MOMENTUM)
+    opt = optimizer_fn(opt=opt_name, hparams=hparams, num_steps=NUM_STEPS)
     
     solver = OptaxSolver(
         opt=opt,
@@ -168,14 +193,16 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
     params = init_params
     batch_stats = init_batch_stats
     ## EMA
-    ema = optax.ema(decay=EMA_DECAY)
-    ema_state = ema.init(params)
+    #ema = optax.ema(decay=EMA_DECAY)
+    #ema_state = ema.init(params)
     ## SWA
-    swa_params = params
-    swa_n = 0  # number of models averaged
+    #swa_start_epoch= int(0.75 * nb_epochs)
+    #swa_freq = 3
+    #swa_params = params
+    #swa_n = 0  # number of models averaged
     
-    state = solver.init_state(params, L2REG, next(test_ds), batch_stats)
-    jitted_update = jax.jit(functools.partial(lopt_update, self=solver)) if use_lopt else jax.jit(solver.update)
+    state = solver.init_state(params, next(test_ds), batch_stats)
+    jitted_update = jax.jit(functools.partial(lopt_update, self=solver)) if opt_name == "velo" else jax.jit(solver.update)
 
     # TENSORBOARD LOGGINGS #
     log_dir = f"runs/{run_name}"
@@ -188,13 +215,14 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
 
     total_start = time.time()
 
+    test_data = list(test_ds)
     for epoch in trange(nb_epochs, desc="Epochs"):
         epoch_start = time.time()
         pbar = tqdm(range(iter_per_epoch_train), leave=False, desc="Steps")
 
         for step in pbar:
             train_minibatch = next(train_ds)
-            acc_train, loss_train = accuracy_and_loss(params, L2REG, train_minibatch, batch_stats)
+            acc_train, loss_train = accuracy_and_loss(params, train_minibatch, batch_stats)
             step_train_acc.append(float(acc_train))
             step_train_loss.append(float(loss_train))
             
@@ -204,15 +232,16 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
             writer.add_scalar("Step/loss", float(loss_train), step_counter)
             
             # UPDATE # 
-            params, state = jitted_update(params=params, state=state, l2reg=L2REG, data=train_minibatch, aux=batch_stats)
+            params, state = jitted_update(params=params, state=state, data=train_minibatch, aux=batch_stats)
             batch_stats = state.aux
             
-            _, ema_state = update_ema(params, ema_state)
-            if epoch >= swa_start_epoch and (epoch - swa_start_epoch) % swa_freq == 0:
-                swa_params = jax.tree_util.tree_map(
-                    lambda p1, p2: (p1 * swa_n + p2) / (swa_n + 1), swa_params, params
-                )
-            swa_n += 1
+            #_, ema_state = update_ema(params, ema_state)
+            
+            #if epoch >= swa_start_epoch and (epoch - swa_start_epoch) % swa_freq == 0:
+            #    swa_params = jax.tree_util.tree_map(
+            #        lambda p1, p2: (p1 * swa_n + p2) / (swa_n + 1), swa_params, params
+            #    )
+            #    swa_n += 1
             ##########
             pbar.set_postfix(acc=acc_train.item(), loss=loss_train.item())
 
@@ -220,12 +249,12 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
         epoch_times.append(epoch_time)
 
         train_eval_batches = [next(train_ds) for _ in range(iter_per_epoch_train)]
-        train_metrics = [accuracy_and_loss(params, L2REG, batch, batch_stats) for batch in train_eval_batches]
+        train_metrics = [accuracy_and_loss(params, batch, batch_stats) for batch in train_eval_batches]
         train_acc = float(jnp.mean(jnp.array([m[0] for m in train_metrics])))
         train_loss = float(jnp.mean(jnp.array([m[1] for m in train_metrics])))
 
-        test_batches = [next(test_ds) for _ in range(iter_per_epoch_test)]
-        test_metrics = [accuracy_and_loss(params, L2REG, batch, batch_stats) for batch in test_batches]
+        #test_batches = [next(test_ds) for _ in range(iter_per_epoch_test)]
+        test_metrics = [accuracy_and_loss(params, batch, batch_stats) for batch in test_data]
         test_acc = float(jnp.mean(jnp.array([m[0] for m in test_metrics])))
         test_loss = float(jnp.mean(jnp.array([m[1] for m in test_metrics])))
 
@@ -248,14 +277,14 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
     print(f"Total training time: {total_time:.2f}s")
 
     # EMA model
-    ema_params = ema_state.ema
-    ema_metrics = [accuracy_and_loss(ema_params, L2REG, batch, batch_stats) for batch in test_batches]
-    ema_acc = float(jnp.mean(jnp.array([m[0] for m in ema_metrics])))
-    ema_loss = float(jnp.mean(jnp.array([m[1] for m in ema_metrics])))
+    #ema_params = ema_state.ema
+    #ema_metrics = [accuracy_and_loss(ema_params, L2REG, batch, batch_stats) for batch in test_batches]
+    #ema_acc = float(jnp.mean(jnp.array([m[0] for m in ema_metrics])))
+    #ema_loss = float(jnp.mean(jnp.array([m[1] for m in ema_metrics])))
     
-    swa_metrics = [accuracy_and_loss(swa_params, L2REG, batch, batch_stats) for batch in test_batches]
-    swa_acc = float(jnp.mean(jnp.array([m[0] for m in swa_metrics])))
-    swa_loss = float(jnp.mean(jnp.array([m[1] for m in swa_metrics])))
+    #swa_metrics = [accuracy_and_loss(swa_params, L2REG, batch, batch_stats) for batch in test_batches]
+    #swa_acc = float(jnp.mean(jnp.array([m[0] for m in swa_metrics])))
+    #swa_loss = float(jnp.mean(jnp.array([m[1] for m in swa_metrics])))
 
     return {
         "train_acc": train_acc_list,
@@ -267,9 +296,9 @@ def trainer(train_ds, test_ds, ds_info, model, hparams: dict, optimizer_fn,
         "epoch_times": epoch_times,
         "total_training_time": total_time,
         "nb_steps": NUM_STEPS,
-        "params": params,
-        "ema_params": ema_params,
-        "swa_params": swa_params,
-        "batch_stats": batch_stats,
-        "l2reg": L2REG
+        "params": params, #need for inference
+        #"ema_params": ema_params, #need for inference
+        #"swa_params": swa_params, #need for inference
+        "batch_stats": batch_stats, #need for inference
+        #"l2reg": L2REG #need for inference
     }
