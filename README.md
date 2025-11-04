@@ -17,3 +17,12 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
+To run benchmark
+```bash
+python benchmarks/benchmark.py \
+  --model resnet18 \
+  --dataset mnist \
+  --train_batch_size 32 \
+  --test_batch_size 32 \
+  --epochs 5
+```
