@@ -51,16 +51,34 @@ python benchmarks/agg_infer.py
 
 Goal: test whether tuned baselines can surpass VeLO. Scripts to run are in /hparams_search.
 
-Example: tune Adam on MNIST with ResNet1 for 20 trials
+Example: tune Adam on MNIST with ResNet1 for 20 trials with each trail of 50 epochs. runs and study database are saved in theirs repos respectively in case needed later.
 ```
 python hparams_search\optuna_search.py \
   --model resnet1 \
   --dataset mnist \
+  --opt adam \
   --batch_size 32 \
-  --alt_opt adam \
-  --epochs 5 \
-  --n_trials 20
+  --epochs 50 \
+  --n_trails 20
 ```
+
+After tuning, best hyperparameters set can be shown as below:
+```
+python hparams_search\best_hparam.py \
+  --model resnet1 \
+  --dataset mnist \
+  --opt adam \
+```
+
+Inference can be done on new test dataset with the best hyperparameters with the checkpoint given from above
+```
+python hparams_search\inference.py \
+  --model resnet1 \
+  --dataset mnist \
+  --batch_size 32 \
+  --best_ckpt path\to\checkpoints
+```
+
 
 # Repo structure
 ```
