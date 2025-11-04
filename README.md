@@ -49,7 +49,7 @@ python benchmarks/agg_infer.py
 
 # Hyperparameters Tuning: Is VeLO inherently better, or just better than poorly tuned baselines?
 
-Goal: test whether tuned baselines can surpass VeLO. Scripts to run are in /hparams_search.
+Goal: test whether tuned baselines can surpass VeLO.
 
 Example: tune Adam on MNIST with ResNet1 for 20 trials with each trail of 50 epochs. runs and study database are saved in theirs repos respectively in case needed later.
 ```
