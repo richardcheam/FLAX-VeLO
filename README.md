@@ -63,7 +63,7 @@ python hparams_search\optuna_search.py \
 ```
 
 # Repo structure
-`
+```
 FLAX-VeLO/
 ├─ benchmarks/
 │  ├─ benchmark.py
@@ -86,4 +86,4 @@ FLAX-VeLO/
 │  ├─ checkpoints/
 │  └─ plots/
 └─ requirements.txt
-`
+```
