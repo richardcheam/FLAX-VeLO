@@ -26,4 +26,4 @@ python benchmarks/benchmark.py \
   --test_batch_size 32 \
   --epochs 100
 ```
-Note that for each optimizer, this script runs multiple times depending on the number of seeds specified. Optimizer can be modified at variable {OPT}.
+Note that for each optimizer, this script runs multiple times depending on the number of seeds specified. Optimizer and its hyperparameters can be modified at variable `{OPT}` and `HPARAMS`.
