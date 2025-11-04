@@ -17,13 +17,37 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
-To run benchmark script:
+To run benchmark:
 ```bash
 python benchmarks/benchmark.py \
-  --model resnet18 \
+  --model resnet1 \
   --dataset mnist \
   --train_batch_size 32 \
   --test_batch_size 32 \
   --epochs 100
 ```
-Note that for each optimizer, this script runs multiple times depending on the number of seeds specified. Optimizer and its hyperparameters can be modified at variable `{OPT}` and `HPARAMS`.
+Note that for each optimizer, this script runs multiple times depending on the number of seeds specified. Optimizer and its hyperparameters can be modified at variable `OPT` and `HPARAMS`. The results will be available in /results/. /results/metrics contains the results needed for plot and so on, while /results/checkpoints basically stores the training checkpoints for inference.
+
+To get plot:
+```bash
+python benchmarks/plot.py \
+  --model resnet1 \
+  --dataset mnist \
+```
+
+To do inference for a checkpoint (a dataset and an optimizer): 
+```bash
+python benchmarks/inference.py \
+  --model resnet18
+  --dataset mnist
+  --ckpt results/checkpoints/mnist
+``` 
+
+To do aggregated inference for multiple checkpoints (a dataset, an optimizer, many seeds): 
+```bash
+python benchmarks/agg_infer.py
+  --model resnet1
+  --dataset mnist
+  --opt velo
+```
+
