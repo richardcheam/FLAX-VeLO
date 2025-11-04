@@ -10,7 +10,7 @@ The code for hyperparamters tuning of baseline optimizers to see if they surpass
 
 Make sure to have virtual environment. If not, in terminal do ```pip3 install virtualenv```. Then,
 ```
-git clone git@github.com:google/learned_optimization.git
+git clone https://github.com/richardcheam/FLAX-VeLO.git
 cd FLAX-VeLO
 python3 -m venv env
 source env/bin/activate
