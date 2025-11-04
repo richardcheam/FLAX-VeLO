@@ -13,6 +13,8 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
+> ⚠️ **Warning:** there could be dependencies issue with different libraries and utility functions at first, but it is fast to solve!  
+
 To run benchmark:
 ```bash
 python benchmarks/benchmark.py \
