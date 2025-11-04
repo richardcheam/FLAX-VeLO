@@ -6,10 +6,9 @@ This repo contains the scripts used to compare Google's VeLO (Versatile Learned 
 
 The code for hyperparamters tuning of baseline optimizers to see if they surpass the performance of VeLO is in /hparams_search.
 
-## How to run?
+## How to run locally?
 
-Make sure to have virtual environment. If not do: ```pip3 install virtualenv```
-
+Make sure to have virtual environment. If not, in terminal do ```pip3 install virtualenv```. Then,
 ```
 git clone git@github.com:google/learned_optimization.git
 cd FLAX-VeLO
@@ -17,3 +16,4 @@ python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 ```
+
