@@ -28,22 +28,22 @@ To get plot:
 ```bash
 python benchmarks/plot.py \
   --model resnet1 \
-  --dataset mnist \
+  --dataset mnist 
 ```
 
 To do inference for a checkpoint (a dataset and an optimizer): 
 ```bash
 python benchmarks/inference.py \
-  --model resnet18
-  --dataset mnist
+  --model resnet18 \
+  --dataset mnist \
   --ckpt results/checkpoints/mnist
 ``` 
 
 To do aggregated inference for multiple checkpoints (a dataset, an optimizer, many seeds): 
 ```bash
 python benchmarks/agg_infer.py
-  --model resnet1
-  --dataset mnist
+  --model resnet1 \
+  --dataset mnist \
   --opt velo
 ```
 
