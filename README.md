@@ -1,6 +1,6 @@
 # Single-Objective Optimizer Benchmarks 
 
-Goal: compare Google's VeLO (Versatile Learned Optimizer) with classic optimizers used in deep learning like Adam, SGDM, etc, on image classification task across four datasets: MNIST, Kuzushiji-MNIST (KMNIST), FashionMNIST. For CIFAR10 find here.
+Goal: compare Google's VeLO (Versatile Learned Optimizer) with classic optimizers used in deep learning like Adam, SGDM, etc, on image classification task across four datasets: MNIST, Kuzushiji-MNIST (KMNIST), FashionMNIST. For CIFAR10 find [here](https://github.com/richardcheam/flax-cifar-velo).
 
 ## How to run locally?
 
